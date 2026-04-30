@@ -1,0 +1,156 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f0f0f0;
+  color: #222;
+  overflow: hidden;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: #fff;
+  border-bottom: 1px solid #ddd;
+  flex-shrink: 0;
+}
+
+#appTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #333;
+}
+
+/* ── Main workspace ── */
+#workspace {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 1px;
+  background: #ccc;
+}
+
+#canvas2d-section,
+#preview3d-section {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+#canvas2d {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+#three-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Controls footer ── */
+#controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 48px;
+  padding: 10px 16px;
+  background: #fff;
+  border-top: 1px solid #ddd;
+  flex-shrink: 0;
+}
+
+.angle-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.angle-control label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #555;
+  min-width: 32px;
+}
+
+.angle-value {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 52px;
+  text-align: center;
+  color: #111;
+}
+
+/* ── Buttons ── */
+button {
+  cursor: pointer;
+  border: 1px solid #bbb;
+  background: #f8f8f8;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+button:hover {
+  background: #e8e8e8;
+  border-color: #999;
+}
+
+button:active {
+  background: #ddd;
+}
+
+#uploadBtn,
+#downloadBtn {
+  padding: 6px 14px;
+  font-weight: 500;
+}
+
+#downloadBtn {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+
+#downloadBtn:hover {
+  background: #1d4ed8;
+  border-color: #1e40af;
+}
+
+#downloadBtn:active {
+  background: #1e40af;
+}
+
+.adj-btn {
+  padding: 4px 14px;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 700;
+}
+
+/* ── Upload hint overlay ── */
+#upload-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+#upload-hint span {
+  color: #888;
+  font-size: 0.95rem;
+}

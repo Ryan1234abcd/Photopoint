@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photopoint Shim Generator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="toolbar">
+    <button id="uploadBtn">Upload Photo</button>
+    <input type="file" id="fileInput" accept="image/*" hidden>
+    <span id="appTitle">Photopoint Shim Generator</span>
+    <button id="downloadBtn">Download STL</button>
+  </header>
+
+  <main id="workspace">
+    <section id="canvas2d-section">
+      <canvas id="canvas2d"></canvas>
+    </section>
+    <section id="preview3d-section">
+      <div id="three-container"></div>
+    </section>
+  </main>
+
+  <footer id="controls">
+    <div class="angle-control">
+      <label>Roll</label>
+      <button class="adj-btn" id="rollMinus">−</button>
+      <span class="angle-value" id="rollValue">0.0°</span>
+      <button class="adj-btn" id="rollPlus">+</button>
+    </div>
+    <div class="angle-control">
+      <label>Yaw</label>
+      <button class="adj-btn" id="yawMinus">−</button>
+      <span class="angle-value" id="yawValue">0.0°</span>
+      <button class="adj-btn" id="yawPlus">+</button>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.149.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
