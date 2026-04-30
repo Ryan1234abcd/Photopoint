@@ -43,12 +43,16 @@ function init() {
   document.getElementById('yawMinus' ).addEventListener('click', () => onYawChange(-0.5));
   document.getElementById('yawPlus'  ).addEventListener('click', () => onYawChange( 0.5));
 
-  initThree();
-  resizeCanvas();
-  render2D();
-  updateShimMesh();
-
   window.addEventListener('resize', onResize);
+
+  // Defer visual init until after the browser has computed layout,
+  // so clientWidth/Height are non-zero for both canvases.
+  requestAnimationFrame(() => {
+    initThree();
+    resizeCanvas();
+    render2D();
+    updateShimMesh();
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -61,22 +65,42 @@ function resizeCanvas() {
   canvas2d.height = Math.floor(section.clientHeight);
 }
 
+// Photo is drawn with 15% padding on each side so the corrected-frame
+// outline has room to extend visibly outside the photo area.
+const PHOTO_PAD = 0.15;
+
+function getPhotoRect(W, H) {
+  return {
+    x: Math.round(W * PHOTO_PAD),
+    y: Math.round(H * PHOTO_PAD),
+    w: Math.round(W * (1 - 2 * PHOTO_PAD)),
+    h: Math.round(H * (1 - 2 * PHOTO_PAD))
+  };
+}
+
 function render2D() {
   const W = canvas2d.width;
   const H = canvas2d.height;
+  if (!W || !H) return;
 
   ctx2d.clearRect(0, 0, W, H);
   ctx2d.fillStyle = '#1a1a1a';
   ctx2d.fillRect(0, 0, W, H);
 
+  const { x, y, w, h } = getPhotoRect(W, H);
+
   if (state.photo) {
-    ctx2d.drawImage(state.photo, 0, 0, W, H);
+    ctx2d.drawImage(state.photo, x, y, w, h);
   } else {
+    ctx2d.fillStyle = '#444';
+    ctx2d.strokeStyle = '#555';
+    ctx2d.lineWidth = 1;
+    ctx2d.strokeRect(x, y, w, h);
     ctx2d.fillStyle = '#666';
-    ctx2d.font = '15px system-ui, sans-serif';
+    ctx2d.font = '14px system-ui, sans-serif';
     ctx2d.textAlign = 'center';
     ctx2d.textBaseline = 'middle';
-    ctx2d.fillText('Upload a photo to begin', W / 2, H / 2);
+    ctx2d.fillText('Upload a photo to begin', x + w / 2, y + h / 2);
     ctx2d.textAlign = 'start';
     ctx2d.textBaseline = 'alphabetic';
   }
@@ -85,31 +109,37 @@ function render2D() {
 }
 
 function drawOutline(W, H) {
-  const rollRad  = state.rollDeg * Math.PI / 180;
-  // 60° of yaw maps to full canvas width; provides ~W/12 px shift per degree
-  const yawPx    = state.yawDeg * W / 60;
+  const { x: px, y: py, w: pw, h: ph } = getPhotoRect(W, H);
+  const rollRad = state.rollDeg * Math.PI / 180;
+  // Yaw translation scales to photo width; 60° maps to one full photo width
+  const yawPx   = state.yawDeg * pw / 60;
+
+  // Pivot: left edge of photo rect, at photo mid-height (matches spec "x=0, y=H/2"
+  // where the "canvas" is the photo display area)
+  const pivotX = px;
+  const pivotY = py + ph / 2;
 
   ctx2d.save();
 
-  // Canvas transforms are applied in reverse order to drawn shapes.
-  // Net result: shape is rotated around (0, H/2), then translated by yawPx.
-  ctx2d.translate(yawPx, 0);        // 2) yaw: shift outline along x
-  ctx2d.translate(0, H / 2);        // pivot to canvas left-centre
-  ctx2d.rotate(rollRad);            // 1) roll: rotate around (0, H/2)
-  ctx2d.translate(0, -H / 2);
+  // Transforms applied in reverse to drawn shapes:
+  // shape → rotate around photo-left-centre → translate by yawPx
+  ctx2d.translate(yawPx, 0);
+  ctx2d.translate(pivotX, pivotY);
+  ctx2d.rotate(rollRad);
+  ctx2d.translate(-pivotX, -pivotY);
 
-  // Corrected-frame outline
+  // Corrected-frame outline (same size as photo rect)
   ctx2d.strokeStyle = '#00e676';
   ctx2d.lineWidth   = 2;
-  ctx2d.strokeRect(0, 0, W, H);
+  ctx2d.strokeRect(px, py, pw, ph);
 
-  // Corner tick marks for easier alignment
-  const tick = Math.min(W, H) * 0.045;
-  ctx2d.strokeStyle = 'rgba(255,255,255,0.8)';
+  // Corner tick marks for alignment
+  const tick = Math.min(pw, ph) * 0.05;
+  ctx2d.strokeStyle = 'rgba(255,255,255,0.75)';
   ctx2d.lineWidth   = 1.5;
-  for (const [cx, cy] of [[0, 0], [W, 0], [W, H], [0, H]]) {
-    const sx = cx === 0 ? 1 : -1;
-    const sy = cy === 0 ? 1 : -1;
+  for (const [cx, cy] of [[px, py], [px + pw, py], [px + pw, py + ph], [px, py + ph]]) {
+    const sx = cx === px ? 1 : -1;
+    const sy = cy === py ? 1 : -1;
     ctx2d.beginPath();
     ctx2d.moveTo(cx + sx * tick, cy);
     ctx2d.lineTo(cx, cy);
@@ -337,6 +367,10 @@ function initThree() {
   controls.target.set(0, 0, 0);
 
   new ResizeObserver(() => onThreeResize()).observe(container);
+
+  // ResizeObserver fires asynchronously; also trigger explicitly after first paint
+  // in case the observer fires before the renderer canvas is in the DOM.
+  requestAnimationFrame(onThreeResize);
 
   animate();
 }

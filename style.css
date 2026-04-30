@@ -35,7 +35,8 @@ body {
 /* ── Main workspace ── */
 #workspace {
   display: flex;
-  flex: 1;
+  height: 58vh;
+  flex-shrink: 0;
   overflow: hidden;
   gap: 1px;
   background: #ccc;
