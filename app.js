@@ -61,12 +61,14 @@ function init() {
 
 function resizeCanvas() {
   const section = document.getElementById('canvas2d-section');
-  canvas2d.width  = Math.floor(section.clientWidth);
-  canvas2d.height = Math.floor(section.clientHeight);
+  const dpr = window.devicePixelRatio || 1;
+  // Set buffer at native resolution; CSS keeps canvas at 100%×100% of section.
+  canvas2d.width  = Math.floor(section.clientWidth  * dpr);
+  canvas2d.height = Math.floor(section.clientHeight * dpr);
 }
 
-// Photo is drawn with 15% padding on each side so the corrected-frame
-// outline has room to extend visibly outside the photo area.
+// Photo is drawn with 15% padding inside the canvas so the corrected-frame
+// outline has room to extend visibly beyond the photo boundary.
 const PHOTO_PAD = 0.15;
 
 function getPhotoRect(W, H) {
@@ -79,11 +81,16 @@ function getPhotoRect(W, H) {
 }
 
 function render2D() {
-  const W = canvas2d.width;
-  const H = canvas2d.height;
+  const dpr = window.devicePixelRatio || 1;
+  // Work in CSS pixels; the DPR scale maps them to physical pixels.
+  const W = canvas2d.width  / dpr;
+  const H = canvas2d.height / dpr;
   if (!W || !H) return;
 
-  ctx2d.clearRect(0, 0, W, H);
+  ctx2d.clearRect(0, 0, canvas2d.width, canvas2d.height);
+  ctx2d.save();
+  ctx2d.scale(dpr, dpr);  // all subsequent coordinates are CSS pixels
+
   ctx2d.fillStyle = '#1a1a1a';
   ctx2d.fillRect(0, 0, W, H);
 
@@ -92,12 +99,11 @@ function render2D() {
   if (state.photo) {
     ctx2d.drawImage(state.photo, x, y, w, h);
   } else {
-    ctx2d.fillStyle = '#444';
-    ctx2d.strokeStyle = '#555';
+    ctx2d.strokeStyle = '#444';
     ctx2d.lineWidth = 1;
     ctx2d.strokeRect(x, y, w, h);
     ctx2d.fillStyle = '#666';
-    ctx2d.font = '14px system-ui, sans-serif';
+    ctx2d.font = '13px system-ui, sans-serif';
     ctx2d.textAlign = 'center';
     ctx2d.textBaseline = 'middle';
     ctx2d.fillText('Upload a photo to begin', x + w / 2, y + h / 2);
@@ -105,38 +111,46 @@ function render2D() {
     ctx2d.textBaseline = 'alphabetic';
   }
 
-  drawOutline(W, H);
+  drawOutline(W, H);   // called inside the DPR-scaled save block
+  ctx2d.restore();
 }
 
 function drawOutline(W, H) {
+  // All coordinates here are CSS pixels (DPR scale already active from render2D).
   const { x: px, y: py, w: pw, h: ph } = getPhotoRect(W, H);
   const rollRad = state.rollDeg * Math.PI / 180;
-  // Yaw translation scales to photo width; 60° maps to one full photo width
   const yawPx   = state.yawDeg * pw / 60;
 
-  // Pivot: left edge of photo rect, at photo mid-height (matches spec "x=0, y=H/2"
-  // where the "canvas" is the photo display area)
   const pivotX = px;
   const pivotY = py + ph / 2;
 
   ctx2d.save();
-
-  // Transforms applied in reverse to drawn shapes:
-  // shape → rotate around photo-left-centre → translate by yawPx
   ctx2d.translate(yawPx, 0);
   ctx2d.translate(pivotX, pivotY);
   ctx2d.rotate(rollRad);
   ctx2d.translate(-pivotX, -pivotY);
 
-  // Corrected-frame outline (same size as photo rect)
+  // ── Rule-of-thirds grid ──────────────────────────────────
+  ctx2d.strokeStyle = 'rgba(0,230,118,0.35)';
+  ctx2d.lineWidth   = 0.75;
+  ctx2d.beginPath();
+  for (let i = 1; i <= 2; i++) {
+    const gx = px + pw * i / 3;
+    const gy = py + ph * i / 3;
+    ctx2d.moveTo(gx, py);  ctx2d.lineTo(gx, py + ph);  // vertical
+    ctx2d.moveTo(px, gy);  ctx2d.lineTo(px + pw, gy);  // horizontal
+  }
+  ctx2d.stroke();
+
+  // ── Outline border ───────────────────────────────────────
   ctx2d.strokeStyle = '#00e676';
-  ctx2d.lineWidth   = 2;
+  ctx2d.lineWidth   = 1;
   ctx2d.strokeRect(px, py, pw, ph);
 
-  // Corner tick marks for alignment
+  // ── Corner tick marks ────────────────────────────────────
   const tick = Math.min(pw, ph) * 0.05;
-  ctx2d.strokeStyle = 'rgba(255,255,255,0.75)';
-  ctx2d.lineWidth   = 1.5;
+  ctx2d.strokeStyle = 'rgba(255,255,255,0.85)';
+  ctx2d.lineWidth   = 0.75;
   for (const [cx, cy] of [[px, py], [px + pw, py], [px + pw, py + ph], [px, py + ph]]) {
     const sx = cx === px ? 1 : -1;
     const sy = cy === py ? 1 : -1;
@@ -312,16 +326,28 @@ function onDownloadSTL() {
 // ─────────────────────────────────────────────
 
 function initThree() {
-  const container = document.getElementById('three-container');
-  const W = container.clientWidth  || 400;
-  const H = container.clientHeight || 400;
+  if (typeof THREE === 'undefined') {
+    document.getElementById('three-container').innerHTML =
+      '<p style="color:#888;padding:20px;text-align:center">3D preview unavailable<br>(Three.js failed to load)</p>';
+    return;
+  }
 
-  // Renderer
+  const container = document.getElementById('three-container');
+
+  // Renderer — canvas fills container via CSS; buffer is sized in onThreeResize.
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.setSize(W, H);
   renderer.setClearColor(0x1a1a1a);
+  // Make the canvas fill its container without Three.js fighting CSS.
+  Object.assign(renderer.domElement.style, {
+    display: 'block', width: '100%', height: '100%'
+  });
   container.appendChild(renderer.domElement);
+
+  // Size the internal buffer now (may be 0 if layout isn't done yet — rAF fixes it).
+  const W = container.clientWidth  || 600;
+  const H = container.clientHeight || 400;
+  renderer.setSize(W, H, false); // false = don't override the CSS style we set above
 
   scene = new THREE.Scene();
 
@@ -368,9 +394,8 @@ function initThree() {
 
   new ResizeObserver(() => onThreeResize()).observe(container);
 
-  // ResizeObserver fires asynchronously; also trigger explicitly after first paint
-  // in case the observer fires before the renderer canvas is in the DOM.
-  requestAnimationFrame(onThreeResize);
+  // Belt-and-suspenders: fire resize on next two frames to handle timing edge cases.
+  requestAnimationFrame(() => { onThreeResize(); requestAnimationFrame(onThreeResize); });
 
   animate();
 }
@@ -416,6 +441,7 @@ function buildShimBufferGeometry(shimGeom) {
 }
 
 function updateShimMesh() {
+  if (!scene) return;
   if (shimGroup) {
     scene.remove(shimGroup);
     shimGroup.traverse(obj => {
@@ -452,11 +478,12 @@ function updateShimMesh() {
 }
 
 function onThreeResize() {
+  if (!renderer) return;
   const container = document.getElementById('three-container');
   const W = container.clientWidth;
   const H = container.clientHeight;
   if (!W || !H) return;
-  renderer.setSize(W, H);
+  renderer.setSize(W, H, false); // don't override the 100%/100% CSS style
   threeCamera.aspect = W / H;
   threeCamera.updateProjectionMatrix();
 }
@@ -487,18 +514,26 @@ function onFileChange(event) {
 // ANGLE CONTROLS
 // ─────────────────────────────────────────────
 
+let shimTimer = null;
+
+// Rebuild the 3D mesh 1 second after the last angle change.
+function scheduleShimUpdate() {
+  if (shimTimer) clearTimeout(shimTimer);
+  shimTimer = setTimeout(() => { shimTimer = null; updateShimMesh(); }, 1000);
+}
+
 function onRollChange(delta) {
   state.rollDeg = clamp(state.rollDeg + delta, -MAX_ANGLE, MAX_ANGLE);
   rollValueEl.textContent = fmt(state.rollDeg);
   render2D();
-  updateShimMesh();
+  scheduleShimUpdate();
 }
 
 function onYawChange(delta) {
   state.yawDeg = clamp(state.yawDeg + delta, -MAX_ANGLE, MAX_ANGLE);
   yawValueEl.textContent = fmt(state.yawDeg);
   render2D();
-  updateShimMesh();
+  scheduleShimUpdate();
 }
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
