@@ -1,8 +1,13 @@
 // Physical dimensions of the corrected plane (mm)
-const PLANE_HALF_Z  = 11;  // half-width in Z axis (25 mm total)
-const PLANE_HALF_Y  = 57.5;    // half-height in Y axis (150 mm total)
+const PLANE_HALF_Z  = 15;    // half-width in Z axis (30 mm total)
+const PLANE_HALF_Y  = 61;    // half-height in Y axis (122 mm total)
 const MIN_THICKNESS = 2;     // minimum shim thickness perpendicular to face (mm)
 const MAX_ANGLE     = 10;    // maximum roll/yaw correction (degrees)
+
+// Debossed recess on the front face
+const DEBOSS_HALF_Z = 12;    // half-width of recess (24 mm total)
+const DEBOSS_HALF_Y = 58.5;  // half-height of recess (117 mm total)
+const DEBOSS_DEPTH  = 2;     // depth of recess perpendicular to front face (mm)
 
 // === STATE ===
 
@@ -216,7 +221,7 @@ function rotZ(v, phi) {
 // SHIM GEOMETRY
 // ─────────────────────────────────────────────
 
-// Initial corrected-plane vertices on the Y/Z plane (x=0), centred at origin.
+// Outer corrected-plane vertices on the Y/Z plane (x=0), centred at origin.
 // V0=top-left  V1=top-right  V2=bottom-right  V3=bottom-left
 const BASE_VERTS = [
   vec3(0,  PLANE_HALF_Y, -PLANE_HALF_Z),
@@ -225,16 +230,27 @@ const BASE_VERTS = [
   vec3(0, -PLANE_HALF_Y, -PLANE_HALF_Z)
 ];
 
+// Inner boundary of the debossed recess (same plane, smaller extent)
+const INNER_BASE_VERTS = [
+  vec3(0,  DEBOSS_HALF_Y, -DEBOSS_HALF_Z),
+  vec3(0,  DEBOSS_HALF_Y,  DEBOSS_HALF_Z),
+  vec3(0, -DEBOSS_HALF_Y,  DEBOSS_HALF_Z),
+  vec3(0, -DEBOSS_HALF_Y, -DEBOSS_HALF_Z)
+];
+
 function computeCorrectedVertices(rollDeg, yawDeg) {
   const theta = yawDeg  * Math.PI / 180;
   const phi   = rollDeg * Math.PI / 180;
-  // Apply yaw first, then roll
-  return BASE_VERTS.map(v => rotZ(rotY(v, theta), phi));
+  const xf    = v => rotZ(rotY(v, theta), phi);
+  return {
+    outer: BASE_VERTS.map(xf),
+    inner: INNER_BASE_VERTS.map(xf)
+  };
 }
 
-// Returns { front, back, normal } or null if geometry is degenerate.
+// Returns { front, inner, deboss, back, normal } or null if geometry is degenerate.
 function computeShimGeometry(rollDeg, yawDeg) {
-  const front = computeCorrectedVertices(rollDeg, yawDeg);
+  const { outer: front, inner } = computeCorrectedVertices(rollDeg, yawDeg);
 
   // Unit normal of the corrected plane; must point toward the camera (+X)
   let n = normalize(cross(sub(front[1], front[0]), sub(front[3], front[0])));
@@ -243,19 +259,20 @@ function computeShimGeometry(rollDeg, yawDeg) {
   // Guard: degenerate if the plane faces nearly sideways
   if (n.x < 0.01) return null;
 
-  // Base-plane x-position that guarantees minimum perpendicular thickness = MIN_THICKNESS.
-  // Thickness at vertex i = |t_i| where t_i = (c - Vi.x) / n.x.
-  // At the shallowest vertex (min x): t = -MIN_THICKNESS, so c = min_x - MIN_THICKNESS * n.x.
+  // Deboss floor: inner boundary shifted DEBOSS_DEPTH mm behind the front face
+  const deboss = inner.map(v => addScaled(v, n, -DEBOSS_DEPTH));
+
+  // Base-plane x-position guaranteeing minimum perpendicular thickness = MIN_THICKNESS.
   const minX = Math.min(...front.map(v => v.x));
   const c    = minX - MIN_THICKNESS * n.x;
 
-  // Project each front vertex onto the base plane along the inward normal
+  // Project each outer front vertex onto the base plane along the inward normal
   const back = front.map(v => {
     const t = (c - v.x) / n.x;
     return addScaled(v, n, t);
   });
 
-  return { front, back, normal: n };
+  return { front, inner, deboss, back, normal: n };
 }
 
 // ─────────────────────────────────────────────
@@ -278,42 +295,56 @@ function writeTriangle(dv, offset, v1, v2, v3) {
 }
 
 function generateSTL(shimGeom) {
-  const { front: F, back: B } = shimGeom;
+  const { front: V, inner: I, deboss: D, back: B } = shimGeom;
 
-  // 80-byte header + 4-byte triangle count + 12 triangles × 50 bytes = 684 bytes
-  const buf = new ArrayBuffer(684);
+  // 80-byte header + 4-byte count + 28 triangles × 50 bytes = 1484 bytes
+  const buf = new ArrayBuffer(1484);
   const dv  = new DataView(buf);
 
   const header = 'Photopoint Shim Generator';
   for (let i = 0; i < header.length; i++) dv.setUint8(i, header.charCodeAt(i));
 
-  dv.setUint32(80, 12, true); // 12 triangles
+  dv.setUint32(80, 28, true);
 
   let off = 84;
 
-  // Front face  (outward normal ≈ +n̂, toward camera)
-  off = writeTriangle(dv, off, F[0], F[1], F[2]);
-  off = writeTriangle(dv, off, F[0], F[2], F[3]);
+  // Front ring (outer frame strip, normal ≈ +n̂)
+  off = writeTriangle(dv, off, V[0], V[1], I[1]);
+  off = writeTriangle(dv, off, V[0], I[1], I[0]);
+  off = writeTriangle(dv, off, V[1], V[2], I[2]);
+  off = writeTriangle(dv, off, V[1], I[2], I[1]);
+  off = writeTriangle(dv, off, V[2], V[3], I[3]);
+  off = writeTriangle(dv, off, V[2], I[3], I[2]);
+  off = writeTriangle(dv, off, V[3], V[0], I[0]);
+  off = writeTriangle(dv, off, V[3], I[0], I[3]);
 
-  // Back face   (outward normal ≈ −X, toward post)
+  // Step walls (recess sides; top/right/bottom/left)
+  off = writeTriangle(dv, off, I[0], D[1], I[1]);  // top  (+Y)
+  off = writeTriangle(dv, off, I[0], D[0], D[1]);
+  off = writeTriangle(dv, off, I[1], D[2], I[2]);  // right (+Z)
+  off = writeTriangle(dv, off, I[1], D[1], D[2]);
+  off = writeTriangle(dv, off, I[2], D[3], I[3]);  // bottom (−Y)
+  off = writeTriangle(dv, off, I[2], D[2], D[3]);
+  off = writeTriangle(dv, off, I[3], D[0], I[0]);  // left  (−Z)
+  off = writeTriangle(dv, off, I[3], D[3], D[0]);
+
+  // Deboss floor (normal ≈ +n̂, faces into recess)
+  off = writeTriangle(dv, off, D[0], D[1], D[2]);
+  off = writeTriangle(dv, off, D[0], D[2], D[3]);
+
+  // Back face (normal ≈ −X, faces post)
   off = writeTriangle(dv, off, B[1], B[0], B[3]);
   off = writeTriangle(dv, off, B[1], B[3], B[2]);
 
-  // Top side    (outward normal ≈ +Y)  — connects V0'–V1' to W0–W1
-  off = writeTriangle(dv, off, F[0], B[0], B[1]);
-  off = writeTriangle(dv, off, F[0], B[1], F[1]);
-
-  // Right side  (outward normal ≈ +Z)  — connects V1'–V2' to W1–W2
-  off = writeTriangle(dv, off, F[1], B[2], F[2]);
-  off = writeTriangle(dv, off, F[1], B[1], B[2]);
-
-  // Bottom side (outward normal ≈ −Y)  — connects V2'–V3' to W2–W3
-  off = writeTriangle(dv, off, F[2], B[2], B[3]);
-  off = writeTriangle(dv, off, F[2], B[3], F[3]);
-
-  // Left side   (outward normal ≈ −Z)  — connects V3'–V0' to W3–W0
-  off = writeTriangle(dv, off, F[3], B[0], F[0]);
-  off = writeTriangle(dv, off, F[3], B[3], B[0]);
+  // Outer sides (top / right / bottom / left)
+  off = writeTriangle(dv, off, V[0], B[0], B[1]);  // top  (+Y)
+  off = writeTriangle(dv, off, V[0], B[1], V[1]);
+  off = writeTriangle(dv, off, V[1], B[2], V[2]);  // right (+Z)
+  off = writeTriangle(dv, off, V[1], B[1], B[2]);
+  off = writeTriangle(dv, off, V[2], B[2], B[3]);  // bottom (−Y)
+  off = writeTriangle(dv, off, V[2], B[3], V[3]);
+  off = writeTriangle(dv, off, V[3], B[0], V[0]);  // left  (−Z)
+  off = writeTriangle(dv, off, V[3], B[3], B[0]);
 
   return buf;
 }
@@ -405,39 +436,61 @@ function initThree() {
 
 // Builds a flat-shaded BufferGeometry for the shim from explicit triangle list.
 function buildShimBufferGeometry(shimGeom) {
-  const { front: F, back: B } = shimGeom;
+  const { front: V, inner: I, deboss: D, back: B } = shimGeom;
 
-  // 12 triangles with CCW winding for correct outward normals (verified analytically)
+  // 28 triangles with CCW winding for correct outward normals (verified analytically)
   const tris = [
-    [F[0], F[1], F[2]],  // front ×2
-    [F[0], F[2], F[3]],
-    [B[1], B[0], B[3]],  // back ×2
-    [B[1], B[3], B[2]],
-    [F[0], B[0], B[1]],  // top ×2
-    [F[0], B[1], F[1]],
-    [F[1], B[2], F[2]],  // right ×2
-    [F[1], B[1], B[2]],
-    [F[2], B[2], B[3]],  // bottom ×2
-    [F[2], B[3], F[3]],
-    [F[3], B[0], F[0]],  // left ×2
-    [F[3], B[3], B[0]],
+    // Front ring (outer frame, normal ≈ +n̂)
+    [V[0], V[1], I[1]],  [V[0], I[1], I[0]],  // top strip
+    [V[1], V[2], I[2]],  [V[1], I[2], I[1]],  // right strip
+    [V[2], V[3], I[3]],  [V[2], I[3], I[2]],  // bottom strip
+    [V[3], V[0], I[0]],  [V[3], I[0], I[3]],  // left strip
+    // Step walls (recess sides)
+    [I[0], D[1], I[1]],  [I[0], D[0], D[1]],  // top  (+Y)
+    [I[1], D[2], I[2]],  [I[1], D[1], D[2]],  // right (+Z)
+    [I[2], D[3], I[3]],  [I[2], D[2], D[3]],  // bottom (−Y)
+    [I[3], D[0], I[0]],  [I[3], D[3], D[0]],  // left  (−Z)
+    // Deboss floor
+    [D[0], D[1], D[2]],  [D[0], D[2], D[3]],
+    // Back face
+    [B[1], B[0], B[3]],  [B[1], B[3], B[2]],
+    // Outer sides
+    [V[0], B[0], B[1]],  [V[0], B[1], V[1]],  // top  (+Y)
+    [V[1], B[2], V[2]],  [V[1], B[1], B[2]],  // right (+Z)
+    [V[2], B[2], B[3]],  [V[2], B[3], V[3]],  // bottom (−Y)
+    [V[3], B[0], V[0]],  [V[3], B[3], B[0]],  // left  (−Z)
   ];
 
-  // Per-face RGB colours simulating light from upper-front.
-  // Two triangles per face → same colour repeated.
+  // Per-face RGB colours (two triangles per face → colour repeated)
   //                  R       G       B
   const FACE_RGB = [
-    [0.478, 0.722, 1.000],  // front  (brightest — faces viewer)
+    [0.478, 0.722, 1.000],  // front ring top strip
     [0.478, 0.722, 1.000],
-    [0.082, 0.176, 0.353],  // back   (darkest — faces post)
-    [0.082, 0.176, 0.353],
-    [0.361, 0.627, 0.941],  // top
+    [0.478, 0.722, 1.000],  // front ring right strip
+    [0.478, 0.722, 1.000],
+    [0.478, 0.722, 1.000],  // front ring bottom strip
+    [0.478, 0.722, 1.000],
+    [0.478, 0.722, 1.000],  // front ring left strip
+    [0.478, 0.722, 1.000],
+    [0.361, 0.627, 0.941],  // step top  (+Y)
     [0.361, 0.627, 0.941],
-    [0.239, 0.490, 0.831],  // right
+    [0.239, 0.490, 0.831],  // step right (+Z)
     [0.239, 0.490, 0.831],
-    [0.133, 0.345, 0.659],  // bottom
+    [0.133, 0.345, 0.659],  // step bottom (−Y)
     [0.133, 0.345, 0.659],
-    [0.188, 0.439, 0.753],  // left
+    [0.188, 0.439, 0.753],  // step left  (−Z)
+    [0.188, 0.439, 0.753],
+    [0.420, 0.690, 0.980],  // deboss floor (recessed, lighter than ring)
+    [0.420, 0.690, 0.980],
+    [0.082, 0.176, 0.353],  // back face (darkest)
+    [0.082, 0.176, 0.353],
+    [0.361, 0.627, 0.941],  // outer top  (+Y)
+    [0.361, 0.627, 0.941],
+    [0.239, 0.490, 0.831],  // outer right (+Z)
+    [0.239, 0.490, 0.831],
+    [0.133, 0.345, 0.659],  // outer bottom (−Y)
+    [0.133, 0.345, 0.659],
+    [0.188, 0.439, 0.753],  // outer left  (−Z)
     [0.188, 0.439, 0.753],
   ];
 
