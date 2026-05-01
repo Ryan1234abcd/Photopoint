@@ -356,17 +356,8 @@ function initThree() {
   threeCamera.position.set(120, 80, 220);
   threeCamera.lookAt(0, 0, 0);
 
-  // Lighting
-  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
-  const light1 = new THREE.DirectionalLight(0xffffff, 0.9);
-  light1.position.set(200, 150, 100);
-  scene.add(light1);
-  const light2 = new THREE.DirectionalLight(0xffffff, 0.35);
-  light2.position.set(-100, -80, 200);
-  scene.add(light2);
-
-  // Axes: X=red (camera direction), Y=green (vertical), Z=blue (platen width)
-  scene.add(new THREE.AxesHelper(70));
+  // Lighting (kept for any future lit materials)
+  scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
   // Post-face reference plane at x≈0 (the Y/Z plane the shim mounts against)
   const refGeom = new THREE.PlaneGeometry(60, 200); // 60mm wide (Z) × 200mm tall (Y)
@@ -420,23 +411,43 @@ function buildShimBufferGeometry(shimGeom) {
     [F[3], B[3], B[0]],
   ];
 
+  // Per-face RGB colours simulating light from upper-front.
+  // Two triangles per face → same colour repeated.
+  //                  R       G       B
+  const FACE_RGB = [
+    [0.478, 0.722, 1.000],  // front  (brightest — faces viewer)
+    [0.478, 0.722, 1.000],
+    [0.082, 0.176, 0.353],  // back   (darkest — faces post)
+    [0.082, 0.176, 0.353],
+    [0.361, 0.627, 0.941],  // top
+    [0.361, 0.627, 0.941],
+    [0.239, 0.490, 0.831],  // right
+    [0.239, 0.490, 0.831],
+    [0.133, 0.345, 0.659],  // bottom
+    [0.133, 0.345, 0.659],
+    [0.188, 0.439, 0.753],  // left
+    [0.188, 0.439, 0.753],
+  ];
+
   const pos = new Float32Array(tris.length * 9);
-  const nor = new Float32Array(tris.length * 9);
+  const col = new Float32Array(tris.length * 9);
 
   tris.forEach(([v1, v2, v3], i) => {
-    const n = computeTriangleNormal(v1, v2, v3);
     const b = i * 9;
+    const [r, g, bc] = FACE_RGB[i];
     pos[b]   = v1.x; pos[b+1] = v1.y; pos[b+2] = v1.z;
     pos[b+3] = v2.x; pos[b+4] = v2.y; pos[b+5] = v2.z;
     pos[b+6] = v3.x; pos[b+7] = v3.y; pos[b+8] = v3.z;
-    nor[b]   = n.x;  nor[b+1] = n.y;  nor[b+2] = n.z;
-    nor[b+3] = n.x;  nor[b+4] = n.y;  nor[b+5] = n.z;
-    nor[b+6] = n.x;  nor[b+7] = n.y;  nor[b+8] = n.z;
+    for (let v = 0; v < 3; v++) {
+      col[b + v*3]     = r;
+      col[b + v*3 + 1] = g;
+      col[b + v*3 + 2] = bc;
+    }
   });
 
   const geom = new THREE.BufferGeometry();
   geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geom.setAttribute('normal',   new THREE.BufferAttribute(nor, 3));
+  geom.setAttribute('color',    new THREE.BufferAttribute(col, 3));
   return geom;
 }
 
@@ -458,21 +469,10 @@ function updateShimMesh() {
 
   const bufGeom = buildShimBufferGeometry(geom);
 
-  // Solid mesh
-  shimGroup.add(new THREE.Mesh(bufGeom, new THREE.MeshPhongMaterial({
-    color:    0x3b82f6,
-    specular: 0x7fb3f5,
-    shininess: 50,
-    transparent: true,
-    opacity: 0.85,
-    side: THREE.DoubleSide
+  shimGroup.add(new THREE.Mesh(bufGeom, new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.FrontSide
   })));
-
-  // Wireframe edges
-  shimGroup.add(new THREE.LineSegments(
-    new THREE.EdgesGeometry(bufGeom),
-    new THREE.LineBasicMaterial({ color: 0x93c5fd })
-  ));
 
   scene.add(shimGroup);
 }
