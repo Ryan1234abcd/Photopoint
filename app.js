@@ -130,6 +130,18 @@ function drawOutline(W, H) {
   ctx2d.rotate(rollRad);
   ctx2d.translate(-pivotX, -pivotY);
 
+  // ── Fine grid (light grey, every 1/10 of frame) ─────────────
+  ctx2d.strokeStyle = 'rgba(200,200,200,0.2)';
+  ctx2d.lineWidth   = 0.5;
+  ctx2d.beginPath();
+  for (let i = 1; i <= 9; i++) {
+    const gx = px + pw * i / 10;
+    const gy = py + ph * i / 10;
+    ctx2d.moveTo(gx, py);  ctx2d.lineTo(gx, py + ph);
+    ctx2d.moveTo(px, gy);  ctx2d.lineTo(px + pw, gy);
+  }
+  ctx2d.stroke();
+
   // ── Rule-of-thirds grid ──────────────────────────────────
   ctx2d.strokeStyle = 'rgba(0,230,118,0.35)';
   ctx2d.lineWidth   = 0.75;
@@ -519,7 +531,7 @@ let shimTimer = null;
 // Rebuild the 3D mesh 1 second after the last angle change.
 function scheduleShimUpdate() {
   if (shimTimer) clearTimeout(shimTimer);
-  shimTimer = setTimeout(() => { shimTimer = null; updateShimMesh(); }, 1000);
+  shimTimer = setTimeout(() => { shimTimer = null; updateShimMesh(); }, 200);
 }
 
 function onRollChange(delta) {
