@@ -248,9 +248,9 @@ const INNER_BASE_VERTS = [
 function computeCorrectedVertices(rollDeg, yawDeg) {
   const theta = yawDeg  * Math.PI / 180;
   const phi   = rollDeg * Math.PI / 180;
-  // Yaw: rotY (camera turning left/right — wedge in X direction for right-side mount)
-  // Roll: rotX (camera tilting — wedge in Y direction for right-side mount)
-  const xf    = v => rotX(rotY(v, theta), phi);
+  // Negate angles: the right-side mount inverts the wedge direction relative to
+  // the rotation sense. Canvas transforms are intentionally left positive.
+  const xf    = v => rotX(rotY(v, -theta), -phi);
   return {
     outer: BASE_VERTS.map(xf),
     inner: INNER_BASE_VERTS.map(xf)
