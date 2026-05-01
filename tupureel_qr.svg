@@ -6270,6 +6270,6 @@
   <rect x="1110" y="1160" width="10" height="10" fill="black"/>
   <rect x="1120" y="1160" width="10" height="10" fill="black"/>
   <rect x="1140" y="1160" width="10" height="10" fill="black"/>
-  <rect x="509.2" y="581.6" width="191.7" height="46.8" fill="white" rx="4" ry="4"/>
-  <text x="605.0" y="605.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="bold" fill="#1a1a1a" letter-spacing="0.5">tupureel.org</text>
+  <rect x="470.0" y="572.6" width="270.1" height="64.8" fill="white" rx="5" ry="5"/>
+  <text x="605.0" y="605.0" text-anchor="middle" dominant-baseline="central" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="bold" fill="#1a1a1a" letter-spacing="0.5">tupureel.org</text>
 </svg>

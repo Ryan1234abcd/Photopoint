@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Code Generator — Photopoint</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body { overflow: auto; height: auto; min-height: 100vh; }
+
+    #qr-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+
+    #qr-toolbar a {
+      font-size: 0.85rem;
+      color: #2563eb;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    #qr-toolbar a:hover { text-decoration: underline; }
+
+    #qr-main {
+      display: flex;
+      gap: 32px;
+      padding: 28px 32px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    /* ── Form panel ── */
+    #qr-form-panel {
+      flex: 1;
+      min-width: 300px;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field-group label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #555;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .field-group input,
+    .field-group textarea {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 0.95rem;
+      padding: 8px 10px;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      background: #fff;
+      color: #111;
+      width: 100%;
+      resize: vertical;
+    }
+
+    .field-group input:focus,
+    .field-group textarea:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37,99,235,0.15);
+    }
+
+    .field-group input[readonly] {
+      background: #f3f3f3;
+      color: #777;
+      cursor: default;
+    }
+
+    .field-group textarea { min-height: 180px; }
+
+    #generateBtn {
+      padding: 10px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      align-self: flex-start;
+    }
+    #generateBtn:hover { background: #1d4ed8; }
+    #generateBtn:active { background: #1e40af; }
+
+    /* ── Preview panel ── */
+    #qr-preview-panel {
+      flex: 1;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #qr-preview {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 300px;
+      padding: 12px;
+    }
+
+    #qr-preview svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    #qr-placeholder {
+      color: #aaa;
+      font-size: 0.95rem;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    #downloadBtn {
+      display: none;
+      padding: 8px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #downloadBtn:hover { background: #1d4ed8; }
+    #downloadBtn.visible { display: inline-block; }
+  </style>
+</head>
+<body>
+  <div id="qr-toolbar">
+    <a href="index.html">&larr; Shim Generator</a>
+    <span id="appTitle">QR Code Generator</span>
+    <span style="width:120px"></span>
+  </div>
+
+  <div id="qr-main">
+    <div id="qr-form-panel">
+      <div class="field-group">
+        <label>To</label>
+        <input type="text" value="photos@tupureel.org" readonly>
+      </div>
+      <div class="field-group">
+        <label>Subject</label>
+        <input type="text" id="subjectInput" value="CHCH-A-01">
+      </div>
+      <div class="field-group">
+        <label>Body</label>
+        <textarea id="bodyInput">Want to help documentation the regeneration in this area?
+Use the frame to locate you camera and take a photo.
+Attach it to this email.
+Send the message, no need to change the subject, to address or add anything in the body.
+Your photo will be automatically processed.
+Thanks for your help.
+Take another photo whenever you pass.</textarea>
+      </div>
+      <div class="field-group">
+        <label>Overlay text</label>
+        <input type="text" id="overlayInput" value="tupureel.org">
+      </div>
+      <button id="generateBtn">Generate QR Code</button>
+    </div>
+
+    <div id="qr-preview-panel">
+      <div id="qr-preview">
+        <p id="qr-placeholder">Fill in the fields and click<br><strong>Generate QR Code</strong></p>
+      </div>
+      <button id="downloadBtn">Download SVG</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script>
+    const generateBtn = document.getElementById('generateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const qrPreview   = document.getElementById('qr-preview');
+    const placeholder = document.getElementById('qr-placeholder');
+
+    function buildMailto() {
+      const subject = document.getElementById('subjectInput').value.trim();
+      const body    = document.getElementById('bodyInput').value;
+      return 'mailto:photos@tupureel.org'
+        + '?subject=' + encodeURIComponent(subject)
+        + '&body='    + encodeURIComponent(body);
+    }
+
+    function injectOverlay(svgString) {
+      const parser  = new DOMParser();
+      const doc     = parser.parseFromString(svgString, 'image/svg+xml');
+      const svg     = doc.documentElement;
+
+      const vb     = svg.getAttribute('viewBox').split(' ').map(Number);
+      const svgW   = vb[2];
+      const svgH   = vb[3];
+      const cx     = svgW / 2;
+      const cy     = svgH / 2;
+
+      const overlayText = document.getElementById('overlayInput').value || 'tupureel.org';
+      const fontSize    = 32;
+      const charW       = fontSize * 0.62;
+      const textW       = overlayText.length * charW;
+      const rectPadX    = 16;
+      const rectPadY    = 10;
+      const rectW       = textW + rectPadX * 2;
+      const rectH       = fontSize * 1.4 + rectPadY * 2;
+
+      const ns = 'http://www.w3.org/2000/svg';
+
+      const rect = doc.createElementNS(ns, 'rect');
+      rect.setAttribute('x',      cx - rectW / 2);
+      rect.setAttribute('y',      cy - rectH / 2);
+      rect.setAttribute('width',  rectW);
+      rect.setAttribute('height', rectH);
+      rect.setAttribute('fill',   'white');
+      rect.setAttribute('rx',     '5');
+      rect.setAttribute('ry',     '5');
+      svg.appendChild(rect);
+
+      const text = doc.createElementNS(ns, 'text');
+      text.setAttribute('x',                  cx);
+      text.setAttribute('y',                  cy);
+      text.setAttribute('text-anchor',         'middle');
+      text.setAttribute('dominant-baseline',   'central');
+      text.setAttribute('font-family',         'Arial, Helvetica, sans-serif');
+      text.setAttribute('font-size',           fontSize);
+      text.setAttribute('font-weight',         'bold');
+      text.setAttribute('fill',                '#1a1a1a');
+      text.setAttribute('letter-spacing',      '0.5');
+      text.textContent = overlayText;
+      svg.appendChild(text);
+
+      return new XMLSerializer().serializeToString(svg);
+    }
+
+    generateBtn.addEventListener('click', () => {
+      const mailto = buildMailto();
+      QRCode.toString(mailto, { type: 'svg', errorCorrectionLevel: 'H', margin: 4 }, (err, svgString) => {
+        if (err) { alert('QR generation failed: ' + err.message); return; }
+
+        const finalSvg = injectOverlay(svgString);
+
+        placeholder && placeholder.remove();
+        qrPreview.innerHTML = finalSvg;
+
+        downloadBtn.classList.add('visible');
+        downloadBtn.onclick = () => {
+          const blob = new Blob([finalSvg], { type: 'image/svg+xml' });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement('a');
+          a.href     = url;
+          a.download = 'tupureel_qr.svg';
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+      });
+    });
+  </script>
+</body>
+</html>
