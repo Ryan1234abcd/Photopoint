@@ -1,6 +1,6 @@
 // Physical dimensions of the corrected plane (mm)
-const PLANE_HALF_Z  = 12.5;  // half-width in Z axis (25 mm total)
-const PLANE_HALF_Y  = 75;    // half-height in Y axis (150 mm total)
+const PLANE_HALF_Z  = 11;  // half-width in Z axis (25 mm total)
+const PLANE_HALF_Y  = 57.5;    // half-height in Y axis (150 mm total)
 const MIN_THICKNESS = 2;     // minimum shim thickness perpendicular to face (mm)
 const MAX_ANGLE     = 10;    // maximum roll/yaw correction (degrees)
 
