@@ -126,7 +126,7 @@ function drawOutline(W, H) {
   const rollRad = state.rollDeg * Math.PI / 180;
   const yawPx   = state.yawDeg * pw / 60;
 
-  const pivotX = px;
+  const pivotX = px + pw;   // right edge — attachment side for right-hand mount
   const pivotY = py + ph / 2;
 
   ctx2d.save();
@@ -217,31 +217,40 @@ function rotZ(v, phi) {
   return vec3(v.x * c - v.y * s, v.x * s + v.y * c, v.z);
 }
 
+// Rotation around X axis
+function rotX(v, phi) {
+  const c = Math.cos(phi), s = Math.sin(phi);
+  return vec3(v.x, v.y * c - v.z * s, v.y * s + v.z * c);
+}
+
 // ─────────────────────────────────────────────
 // SHIM GEOMETRY
 // ─────────────────────────────────────────────
 
-// Outer corrected-plane vertices on the Y/Z plane (x=0), centred at origin.
-// V0=top-left  V1=top-right  V2=bottom-right  V3=bottom-left
+// Outer corrected-plane vertices on the X/Y plane (z=0), centred at origin.
+// Shim mounts on the right-hand side of the frame; platen face points +Z toward post.
+// V0=top-front  V1=top-back  V2=bottom-back  V3=bottom-front
 const BASE_VERTS = [
-  vec3(0,  PLANE_HALF_Y, -PLANE_HALF_Z),
-  vec3(0,  PLANE_HALF_Y,  PLANE_HALF_Z),
-  vec3(0, -PLANE_HALF_Y,  PLANE_HALF_Z),
-  vec3(0, -PLANE_HALF_Y, -PLANE_HALF_Z)
+  vec3( PLANE_HALF_Z,  PLANE_HALF_Y, 0),
+  vec3(-PLANE_HALF_Z,  PLANE_HALF_Y, 0),
+  vec3(-PLANE_HALF_Z, -PLANE_HALF_Y, 0),
+  vec3( PLANE_HALF_Z, -PLANE_HALF_Y, 0)
 ];
 
 // Inner boundary of the debossed recess (same plane, smaller extent)
 const INNER_BASE_VERTS = [
-  vec3(0,  DEBOSS_HALF_Y, -DEBOSS_HALF_Z),
-  vec3(0,  DEBOSS_HALF_Y,  DEBOSS_HALF_Z),
-  vec3(0, -DEBOSS_HALF_Y,  DEBOSS_HALF_Z),
-  vec3(0, -DEBOSS_HALF_Y, -DEBOSS_HALF_Z)
+  vec3( DEBOSS_HALF_Z,  DEBOSS_HALF_Y, 0),
+  vec3(-DEBOSS_HALF_Z,  DEBOSS_HALF_Y, 0),
+  vec3(-DEBOSS_HALF_Z, -DEBOSS_HALF_Y, 0),
+  vec3( DEBOSS_HALF_Z, -DEBOSS_HALF_Y, 0)
 ];
 
 function computeCorrectedVertices(rollDeg, yawDeg) {
   const theta = yawDeg  * Math.PI / 180;
   const phi   = rollDeg * Math.PI / 180;
-  const xf    = v => rotZ(rotY(v, theta), phi);
+  // Yaw: rotY (camera turning left/right — wedge in X direction for right-side mount)
+  // Roll: rotX (camera tilting — wedge in Y direction for right-side mount)
+  const xf    = v => rotX(rotY(v, theta), phi);
   return {
     outer: BASE_VERTS.map(xf),
     inner: INNER_BASE_VERTS.map(xf)
@@ -252,23 +261,23 @@ function computeCorrectedVertices(rollDeg, yawDeg) {
 function computeShimGeometry(rollDeg, yawDeg) {
   const { outer: front, inner } = computeCorrectedVertices(rollDeg, yawDeg);
 
-  // Unit normal of the corrected plane; must point toward the camera (+X)
+  // Unit normal of the corrected plane; must point toward the post (+Z)
   let n = normalize(cross(sub(front[1], front[0]), sub(front[3], front[0])));
-  if (n.x < 0) n = vec3(-n.x, -n.y, -n.z);
+  if (n.z < 0) n = vec3(-n.x, -n.y, -n.z);
 
-  // Guard: degenerate if the plane faces nearly sideways
-  if (n.x < 0.01) return null;
+  // Guard: degenerate if the plane faces nearly edge-on
+  if (n.z < 0.01) return null;
 
   // Deboss floor: inner boundary shifted DEBOSS_DEPTH mm behind the front face
   const deboss = inner.map(v => addScaled(v, n, -DEBOSS_DEPTH));
 
-  // Base-plane x-position guaranteeing minimum perpendicular thickness = MIN_THICKNESS.
-  const minX = Math.min(...front.map(v => v.x));
-  const c    = minX - MIN_THICKNESS * n.x;
+  // Base-plane z-position guaranteeing minimum perpendicular thickness = MIN_THICKNESS.
+  const minZ = Math.min(...front.map(v => v.z));
+  const c    = minZ - MIN_THICKNESS * n.z;
 
   // Project each outer front vertex onto the base plane along the inward normal
   const back = front.map(v => {
-    const t = (c - v.x) / n.x;
+    const t = (c - v.z) / n.z;
     return addScaled(v, n, t);
   });
 
@@ -394,31 +403,26 @@ function initThree() {
 
   scene = new THREE.Scene();
 
-  // Camera — positioned to give a clear 3/4 view of the shim
+  // Camera — 3/4 view from front-right-top to show face and side of shim
   threeCamera = new THREE.PerspectiveCamera(45, W / H, 0.1, 2000);
-  threeCamera.position.set(120, 80, 220);
+  threeCamera.position.set(80, 80, 220);
   threeCamera.lookAt(0, 0, 0);
 
   // Lighting (kept for any future lit materials)
   scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
-  // Post-face reference plane at x≈0 (the Y/Z plane the shim mounts against)
-  const refGeom = new THREE.PlaneGeometry(60, 200); // 60mm wide (Z) × 200mm tall (Y)
+  // Post-face reference plane on the X/Y plane (z=0) — shim mounts against this face
+  const refGeom = new THREE.PlaneGeometry(40, 130); // 40mm wide (X) × 130mm tall (Y)
   const refMat  = new THREE.MeshBasicMaterial({
     color: 0x888888, transparent: true, opacity: 0.2, side: THREE.DoubleSide
   });
-  const refMesh = new THREE.Mesh(refGeom, refMat);
-  refMesh.rotation.y = Math.PI / 2; // rotate from X/Y plane to Y/Z plane
-  scene.add(refMesh);
+  scene.add(new THREE.Mesh(refGeom, refMat));
 
   // Grid lines on reference plane
-  const refEdges = new THREE.EdgesGeometry(refGeom);
-  const refLines = new THREE.LineSegments(
-    refEdges,
+  scene.add(new THREE.LineSegments(
+    new THREE.EdgesGeometry(refGeom),
     new THREE.LineBasicMaterial({ color: 0x555555 })
-  );
-  refLines.rotation.y = Math.PI / 2;
-  scene.add(refLines);
+  ));
 
   // Orbit controls
   controls = new THREE.OrbitControls(threeCamera, renderer.domElement);
