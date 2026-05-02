@@ -150,6 +150,18 @@
     }
     #downloadBtn:hover { background: #1d4ed8; }
     #downloadBtn.visible { display: inline-block; }
+
+    .char-count {
+      font-size: 0.75rem;
+      font-weight: 400;
+      color: #999;
+      margin-left: 6px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .char-count.at-limit { color: #dc2626; }
+    .field-warn { font-size: 0.78rem; color: #dc2626; }
+    .field-note { font-size: 0.78rem; color: #888; }
   </style>
 </head>
 <body>
@@ -166,18 +178,16 @@
         <input type="text" value="photos@tupureel.org" readonly>
       </div>
       <div class="field-group">
-        <label>Subject</label>
-        <input type="text" id="subjectInput" value="CHCH-A-01">
+        <label>Subject <span id="subjectCount" class="char-count">9/15</span></label>
+        <input type="text" id="subjectInput" value="CHCH-A-01" maxlength="15">
+        <span id="subjectWarn" class="field-warn" style="display:none">Maximum 15 characters reached</span>
       </div>
       <div class="field-group">
-        <label>Body</label>
-        <textarea id="bodyInput">Want to help documentation the regeneration in this area?
-Use the frame to locate you camera and take a photo.
-Attach it to this email.
-Send the message, no need to change the subject, to address or add anything in the body.
-Your photo will be automatically processed.
-Thanks for your help.
+        <label>Body <span id="bodyCount" class="char-count"></span></label>
+        <textarea id="bodyInput">Attach a photo and send.
+Use the frame to locate your camera.
 Take another photo whenever you pass.</textarea>
+        <span class="field-note">Shorter body = smaller, easier-to-scan QR code</span>
       </div>
       <div class="field-group">
         <label>Overlay text</label>
@@ -283,6 +293,27 @@ Take another photo whenever you pass.</textarea>
 
       return svg;
     }
+
+    const subjectInput = document.getElementById('subjectInput');
+    const subjectCount = document.getElementById('subjectCount');
+    const subjectWarn  = document.getElementById('subjectWarn');
+    const bodyInput    = document.getElementById('bodyInput');
+    const bodyCount    = document.getElementById('bodyCount');
+
+    function updateSubjectCount() {
+      const len = subjectInput.value.length;
+      subjectCount.textContent = len + '/15';
+      subjectCount.classList.toggle('at-limit', len >= 15);
+      subjectWarn.style.display = len >= 15 ? '' : 'none';
+    }
+    subjectInput.addEventListener('input', updateSubjectCount);
+    updateSubjectCount();
+
+    function updateBodyCount() {
+      bodyCount.textContent = bodyInput.value.length + ' chars';
+    }
+    bodyInput.addEventListener('input', updateBodyCount);
+    updateBodyCount();
 
     generateBtn.addEventListener('click', () => {
       const mailto      = buildMailto();
