@@ -194,12 +194,11 @@ Take another photo whenever you pass.</textarea>
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="vendor/qrcode-generator.js"></script>
   <script>
     const generateBtn = document.getElementById('generateBtn');
     const downloadBtn = document.getElementById('downloadBtn');
     const qrPreview   = document.getElementById('qr-preview');
-    const placeholder = document.getElementById('qr-placeholder');
 
     function buildMailto() {
       const subject = document.getElementById('subjectInput').value.trim();
@@ -209,29 +208,57 @@ Take another photo whenever you pass.</textarea>
         + '&body='    + encodeURIComponent(body);
     }
 
-    function injectOverlay(svgString) {
-      const parser  = new DOMParser();
-      const doc     = parser.parseFromString(svgString, 'image/svg+xml');
-      const svg     = doc.documentElement;
+    function buildSvg(mailto, overlayText) {
+      // qrcode-generator gives direct matrix access — render as SVG rects
+      const qr = qrcode(0, 'H');
+      qr.addData(mailto);
+      qr.make();
 
-      const vb     = svg.getAttribute('viewBox').split(' ').map(Number);
-      const svgW   = vb[2];
-      const svgH   = vb[3];
-      const cx     = svgW / 2;
-      const cy     = svgH / 2;
+      const moduleCount = qr.getModuleCount();
+      const cell    = 10;
+      const border  = 4;  // modules of quiet zone
+      const total   = (moduleCount + border * 2) * cell;
+      const pad     = border * cell;
 
-      const overlayText = document.getElementById('overlayInput').value || 'tupureel.org';
-      const fontSize    = 32;
-      const charW       = fontSize * 0.62;
-      const textW       = overlayText.length * charW;
-      const rectPadX    = 16;
-      const rectPadY    = 10;
-      const rectW       = textW + rectPadX * 2;
-      const rectH       = fontSize * 1.4 + rectPadY * 2;
+      const fontSize  = 32;
+      const charW     = fontSize * 0.62;
+      const textW     = overlayText.length * charW;
+      const rectPadX  = 16;
+      const rectPadY  = 10;
+      const rectW     = textW + rectPadX * 2;
+      const rectH     = fontSize * 1.4 + rectPadY * 2;
+      const cx        = total / 2;
+      const cy        = total / 2;
 
       const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('xmlns',    ns);
+      svg.setAttribute('viewBox',  `0 0 ${total} ${total}`);
+      svg.setAttribute('width',    total);
+      svg.setAttribute('height',   total);
+      svg.setAttribute('shape-rendering', 'crispEdges');
 
-      const rect = doc.createElementNS(ns, 'rect');
+      const bg = document.createElementNS(ns, 'rect');
+      bg.setAttribute('width',  total);
+      bg.setAttribute('height', total);
+      bg.setAttribute('fill',   'white');
+      svg.appendChild(bg);
+
+      for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+          if (qr.isDark(row, col)) {
+            const r = document.createElementNS(ns, 'rect');
+            r.setAttribute('x',      pad + col * cell);
+            r.setAttribute('y',      pad + row * cell);
+            r.setAttribute('width',  cell);
+            r.setAttribute('height', cell);
+            r.setAttribute('fill',   'black');
+            svg.appendChild(r);
+          }
+        }
+      }
+
+      const rect = document.createElementNS(ns, 'rect');
       rect.setAttribute('x',      cx - rectW / 2);
       rect.setAttribute('y',      cy - rectH / 2);
       rect.setAttribute('width',  rectW);
@@ -241,43 +268,42 @@ Take another photo whenever you pass.</textarea>
       rect.setAttribute('ry',     '5');
       svg.appendChild(rect);
 
-      const text = doc.createElementNS(ns, 'text');
-      text.setAttribute('x',                  cx);
-      text.setAttribute('y',                  cy);
-      text.setAttribute('text-anchor',         'middle');
-      text.setAttribute('dominant-baseline',   'central');
-      text.setAttribute('font-family',         'Arial, Helvetica, sans-serif');
-      text.setAttribute('font-size',           fontSize);
-      text.setAttribute('font-weight',         'bold');
-      text.setAttribute('fill',                '#1a1a1a');
-      text.setAttribute('letter-spacing',      '0.5');
+      const text = document.createElementNS(ns, 'text');
+      text.setAttribute('x',                 cx);
+      text.setAttribute('y',                 cy);
+      text.setAttribute('text-anchor',        'middle');
+      text.setAttribute('dominant-baseline',  'central');
+      text.setAttribute('font-family',        'Arial, Helvetica, sans-serif');
+      text.setAttribute('font-size',          fontSize);
+      text.setAttribute('font-weight',        'bold');
+      text.setAttribute('fill',               '#1a1a1a');
+      text.setAttribute('letter-spacing',     '0.5');
       text.textContent = overlayText;
       svg.appendChild(text);
 
-      return new XMLSerializer().serializeToString(svg);
+      return svg;
     }
 
     generateBtn.addEventListener('click', () => {
-      const mailto = buildMailto();
-      QRCode.toString(mailto, { type: 'svg', errorCorrectionLevel: 'H', margin: 4 }, (err, svgString) => {
-        if (err) { alert('QR generation failed: ' + err.message); return; }
+      const mailto      = buildMailto();
+      const overlayText = document.getElementById('overlayInput').value || 'tupureel.org';
 
-        const finalSvg = injectOverlay(svgString);
+      const svgEl = buildSvg(mailto, overlayText);
 
-        placeholder && placeholder.remove();
-        qrPreview.innerHTML = finalSvg;
+      qrPreview.innerHTML = '';
+      qrPreview.appendChild(svgEl);
 
-        downloadBtn.classList.add('visible');
-        downloadBtn.onclick = () => {
-          const blob = new Blob([finalSvg], { type: 'image/svg+xml' });
-          const url  = URL.createObjectURL(blob);
-          const a    = document.createElement('a');
-          a.href     = url;
-          a.download = 'tupureel_qr.svg';
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-      });
+      const svgString = new XMLSerializer().serializeToString(svgEl);
+      downloadBtn.classList.add('visible');
+      downloadBtn.onclick = () => {
+        const blob = new Blob([svgString], { type: 'image/svg+xml' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href     = url;
+        a.download = 'tupureel_qr.svg';
+        a.click();
+        URL.revokeObjectURL(url);
+      };
     });
   </script>
 </body>
