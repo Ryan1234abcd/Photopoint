@@ -196,6 +196,17 @@ Take another photo whenever you pass.</textarea>
         </label>
         <input type="text" id="overlayInput" value="tupureel.org">
       </div>
+      <div class="field-group">
+        <label>Output style</label>
+        <div style="display:flex;gap:20px;">
+          <label style="text-transform:none;letter-spacing:0;font-weight:500;color:#333;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <input type="radio" name="outputStyle" id="styleQr" value="qr" checked style="width:auto;"> QR code only
+          </label>
+          <label style="text-transform:none;letter-spacing:0;font-weight:500;color:#333;cursor:pointer;display:flex;align-items:center;gap:6px;">
+            <input type="radio" name="outputStyle" id="styleSign" value="sign" style="width:auto;"> Full sign
+          </label>
+        </div>
+      </div>
       <button id="generateBtn">Generate QR Code</button>
     </div>
 
@@ -221,80 +232,114 @@ Take another photo whenever you pass.</textarea>
         + '&body='    + encodeURIComponent(body);
     }
 
-    function buildSvg(mailto, overlayText) {
-      // qrcode-generator gives direct matrix access — render as SVG rects
-      const qr = qrcode(0, 'H');
-      qr.addData(mailto);
-      qr.make();
-
+    function buildQrSvg(qr, overlayText) {
       const moduleCount = qr.getModuleCount();
-      const cell    = 10;
-      const border  = 4;  // modules of quiet zone
-      const total   = (moduleCount + border * 2) * cell;
-      const pad     = border * cell;
-
-      const cx = total / 2;
-      const cy = total / 2;
+      const cell  = 10;
+      const border = 4;
+      const total = (moduleCount + border * 2) * cell;
+      const pad   = border * cell;
+      const cx = total / 2, cy = total / 2;
 
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
-      svg.setAttribute('xmlns',    ns);
-      svg.setAttribute('viewBox',  `0 0 ${total} ${total}`);
-      svg.setAttribute('width',    total);
-      svg.setAttribute('height',   total);
+      svg.setAttribute('xmlns', ns);
+      svg.setAttribute('viewBox', `0 0 ${total} ${total}`);
+      svg.setAttribute('width',  total);
+      svg.setAttribute('height', total);
       svg.setAttribute('shape-rendering', 'crispEdges');
 
       const bg = document.createElementNS(ns, 'rect');
-      bg.setAttribute('width',  total);
-      bg.setAttribute('height', total);
-      bg.setAttribute('fill',   'white');
+      bg.setAttribute('width', total); bg.setAttribute('height', total); bg.setAttribute('fill', 'white');
       svg.appendChild(bg);
 
       for (let row = 0; row < moduleCount; row++) {
         for (let col = 0; col < moduleCount; col++) {
           if (qr.isDark(row, col)) {
             const r = document.createElementNS(ns, 'rect');
-            r.setAttribute('x',      pad + col * cell);
-            r.setAttribute('y',      pad + row * cell);
-            r.setAttribute('width',  cell);
-            r.setAttribute('height', cell);
-            r.setAttribute('fill',   'black');
+            r.setAttribute('x', pad + col * cell); r.setAttribute('y', pad + row * cell);
+            r.setAttribute('width', cell);         r.setAttribute('height', cell);
+            r.setAttribute('fill', 'black');
             svg.appendChild(r);
           }
         }
       }
+      addOverlay(svg, ns, cx, cy, overlayText);
+      return svg;
+    }
 
-      if (overlayText) {
-        const fontSize = 32;
-        const rectPadX = 16, rectPadY = 10;
-        const rectW    = overlayText.length * fontSize * 0.62 + rectPadX * 2;
-        const rectH    = fontSize * 1.4 + rectPadY * 2;
+    function buildSignSvg(qr, overlayText) {
+      const ns = 'http://www.w3.org/2000/svg';
+      const S = 600, fOuter = 8, fWidth = 68;
+      const inner = fOuter + fWidth, innerSz = S - inner * 2;
+      const cx = S / 2, cy = S / 2;
+      const green = '#3a6b1d', textClr = '#a0c070';
 
-        const rect = document.createElementNS(ns, 'rect');
-        rect.setAttribute('x',      cx - rectW / 2);
-        rect.setAttribute('y',      cy - rectH / 2);
-        rect.setAttribute('width',  rectW);
-        rect.setAttribute('height', rectH);
-        rect.setAttribute('fill',   'white');
-        rect.setAttribute('rx',     '5');
-        rect.setAttribute('ry',     '5');
-        svg.appendChild(rect);
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('xmlns', ns);
+      svg.setAttribute('viewBox', `0 0 ${S} ${S}`);
+      svg.setAttribute('width', S); svg.setAttribute('height', S);
 
-        const text = document.createElementNS(ns, 'text');
-        text.setAttribute('x',                 cx);
-        text.setAttribute('y',                 cy);
-        text.setAttribute('text-anchor',        'middle');
-        text.setAttribute('dominant-baseline',  'central');
-        text.setAttribute('font-family',        'Arial, Helvetica, sans-serif');
-        text.setAttribute('font-size',          fontSize);
-        text.setAttribute('font-weight',        'bold');
-        text.setAttribute('fill',               '#1a1a1a');
-        text.setAttribute('letter-spacing',     '0.5');
-        text.textContent = overlayText;
-        svg.appendChild(text);
+      function mk(tag, attrs, txt) {
+        const e = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        if (txt !== undefined) e.textContent = txt;
+        return e;
       }
 
+      // Layers
+      svg.appendChild(mk('rect', {width:S, height:S, rx:44, ry:44, fill:'white'}));
+      svg.appendChild(mk('rect', {x:fOuter, y:fOuter, width:S-fOuter*2, height:S-fOuter*2, rx:38, ry:38, fill:green}));
+      svg.appendChild(mk('rect', {x:inner, y:inner, width:innerSz, height:innerSz, rx:10, ry:10, fill:'white'}));
+
+      // Mounting holes at top and bottom centre of inner area
+      svg.appendChild(mk('circle', {cx, cy:inner,         r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
+      svg.appendChild(mk('circle', {cx, cy:inner+innerSz, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
+
+      // Right-pointing arrow straddling the inner/frame boundary
+      const aX = inner + innerSz, aH = 60, aTip = aX + 34;
+      svg.appendChild(mk('polygon', {
+        points:`${aX},${cy-aH/2} ${aTip},${cy} ${aX},${cy+aH/2}`,
+        fill:green
+      }));
+
+      // Border text — top, bottom (inverted), left (−90°), right (+90°)
+      const tA = {'font-family':'Arial,Helvetica,sans-serif','font-size':22,'font-weight':'bold',
+                  fill:textClr,'letter-spacing':4,'text-anchor':'middle','dominant-baseline':'central'};
+      const tC = fOuter + fWidth / 2;
+      svg.appendChild(mk('text', {...tA, x:cx, y:tC}, 'tupureel.org'));
+      svg.appendChild(mk('text', {...tA, x:cx, y:S-tC, transform:`rotate(180,${cx},${S-tC})`}, 'tupureel.org'));
+      svg.appendChild(mk('text', {...tA, x:tC, y:cy,   transform:`rotate(-90,${tC},${cy})`},   'tupureel.org'));
+      svg.appendChild(mk('text', {...tA, x:S-tC, y:cy, transform:`rotate(90,${S-tC},${cy})`},  'tupureel.org'));
+
+      // QR modules
+      const qrPad = 16, qrArea = innerSz - qrPad * 2;
+      const n = qr.getModuleCount(), cell = qrArea / n;
+      const qrX = inner + qrPad, qrY = inner + qrPad;
+      for (let row = 0; row < n; row++) {
+        for (let col = 0; col < n; col++) {
+          if (qr.isDark(row, col))
+            svg.appendChild(mk('rect', {x:qrX+col*cell, y:qrY+row*cell, width:cell, height:cell, fill:'black'}));
+        }
+      }
+      addOverlay(svg, ns, cx, cy, overlayText);
       return svg;
+    }
+
+    function addOverlay(svg, ns, cx, cy, overlayText) {
+      if (!overlayText) return;
+      const fs = 32, rpx = 16, rpy = 10;
+      const rw = overlayText.length * fs * 0.62 + rpx * 2;
+      const rh = fs * 1.4 + rpy * 2;
+      function el(tag, attrs, txt) {
+        const e = document.createElementNS(ns, tag);
+        for (const [k,v] of Object.entries(attrs)) e.setAttribute(k,v);
+        if (txt !== undefined) e.textContent = txt;
+        return e;
+      }
+      svg.appendChild(el('rect', {x:cx-rw/2, y:cy-rh/2, width:rw, height:rh, fill:'white', rx:5, ry:5}));
+      svg.appendChild(el('text', {x:cx, y:cy, 'text-anchor':'middle', 'dominant-baseline':'central',
+        'font-family':'Arial,Helvetica,sans-serif', 'font-size':fs, 'font-weight':'bold',
+        fill:'#1a1a1a', 'letter-spacing':0.5}, overlayText));
     }
 
     const subjectInput = document.getElementById('subjectInput');
@@ -327,8 +372,13 @@ Take another photo whenever you pass.</textarea>
     generateBtn.addEventListener('click', () => {
       const mailto      = buildMailto();
       const overlayText = overlayEnabled.checked ? (overlayInput.value || 'tupureel.org') : null;
+      const isSign      = document.getElementById('styleSign').checked;
 
-      const svgEl = buildSvg(mailto, overlayText);
+      const qr = qrcode(0, 'H');
+      qr.addData(mailto);
+      qr.make();
+
+      const svgEl = isSign ? buildSignSvg(qr, overlayText) : buildQrSvg(qr, overlayText);
 
       qrPreview.innerHTML = '';
       qrPreview.appendChild(svgEl);
@@ -340,7 +390,7 @@ Take another photo whenever you pass.</textarea>
         const url  = URL.createObjectURL(blob);
         const a    = document.createElement('a');
         a.href     = url;
-        a.download = 'tupureel_qr.svg';
+        a.download = isSign ? 'tupureel_sign.svg' : 'tupureel_qr.svg';
         a.click();
         URL.revokeObjectURL(url);
       };
