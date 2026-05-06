@@ -190,7 +190,10 @@ Take another photo whenever you pass.</textarea>
         <span class="field-note">Shorter body = smaller, easier-to-scan QR code</span>
       </div>
       <div class="field-group">
-        <label>Overlay text</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="overlayEnabled" checked style="width:auto;cursor:pointer;">
+          Overlay text
+        </label>
         <input type="text" id="overlayInput" value="tupureel.org">
       </div>
       <button id="generateBtn">Generate QR Code</button>
@@ -230,15 +233,8 @@ Take another photo whenever you pass.</textarea>
       const total   = (moduleCount + border * 2) * cell;
       const pad     = border * cell;
 
-      const fontSize  = 32;
-      const charW     = fontSize * 0.62;
-      const textW     = overlayText.length * charW;
-      const rectPadX  = 16;
-      const rectPadY  = 10;
-      const rectW     = textW + rectPadX * 2;
-      const rectH     = fontSize * 1.4 + rectPadY * 2;
-      const cx        = total / 2;
-      const cy        = total / 2;
+      const cx = total / 2;
+      const cy = total / 2;
 
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
@@ -268,28 +264,35 @@ Take another photo whenever you pass.</textarea>
         }
       }
 
-      const rect = document.createElementNS(ns, 'rect');
-      rect.setAttribute('x',      cx - rectW / 2);
-      rect.setAttribute('y',      cy - rectH / 2);
-      rect.setAttribute('width',  rectW);
-      rect.setAttribute('height', rectH);
-      rect.setAttribute('fill',   'white');
-      rect.setAttribute('rx',     '5');
-      rect.setAttribute('ry',     '5');
-      svg.appendChild(rect);
+      if (overlayText) {
+        const fontSize = 32;
+        const rectPadX = 16, rectPadY = 10;
+        const rectW    = overlayText.length * fontSize * 0.62 + rectPadX * 2;
+        const rectH    = fontSize * 1.4 + rectPadY * 2;
 
-      const text = document.createElementNS(ns, 'text');
-      text.setAttribute('x',                 cx);
-      text.setAttribute('y',                 cy);
-      text.setAttribute('text-anchor',        'middle');
-      text.setAttribute('dominant-baseline',  'central');
-      text.setAttribute('font-family',        'Arial, Helvetica, sans-serif');
-      text.setAttribute('font-size',          fontSize);
-      text.setAttribute('font-weight',        'bold');
-      text.setAttribute('fill',               '#1a1a1a');
-      text.setAttribute('letter-spacing',     '0.5');
-      text.textContent = overlayText;
-      svg.appendChild(text);
+        const rect = document.createElementNS(ns, 'rect');
+        rect.setAttribute('x',      cx - rectW / 2);
+        rect.setAttribute('y',      cy - rectH / 2);
+        rect.setAttribute('width',  rectW);
+        rect.setAttribute('height', rectH);
+        rect.setAttribute('fill',   'white');
+        rect.setAttribute('rx',     '5');
+        rect.setAttribute('ry',     '5');
+        svg.appendChild(rect);
+
+        const text = document.createElementNS(ns, 'text');
+        text.setAttribute('x',                 cx);
+        text.setAttribute('y',                 cy);
+        text.setAttribute('text-anchor',        'middle');
+        text.setAttribute('dominant-baseline',  'central');
+        text.setAttribute('font-family',        'Arial, Helvetica, sans-serif');
+        text.setAttribute('font-size',          fontSize);
+        text.setAttribute('font-weight',        'bold');
+        text.setAttribute('fill',               '#1a1a1a');
+        text.setAttribute('letter-spacing',     '0.5');
+        text.textContent = overlayText;
+        svg.appendChild(text);
+      }
 
       return svg;
     }
@@ -315,9 +318,15 @@ Take another photo whenever you pass.</textarea>
     bodyInput.addEventListener('input', updateBodyCount);
     updateBodyCount();
 
+    const overlayEnabled = document.getElementById('overlayEnabled');
+    const overlayInput   = document.getElementById('overlayInput');
+    overlayEnabled.addEventListener('change', () => {
+      overlayInput.disabled = !overlayEnabled.checked;
+    });
+
     generateBtn.addEventListener('click', () => {
       const mailto      = buildMailto();
-      const overlayText = document.getElementById('overlayInput').value || 'tupureel.org';
+      const overlayText = overlayEnabled.checked ? (overlayInput.value || 'tupureel.org') : null;
 
       const svgEl = buildSvg(mailto, overlayText);
 
