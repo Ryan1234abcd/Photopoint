@@ -295,10 +295,10 @@ Take another photo whenever you pass.</textarea>
       svg.appendChild(mk('circle', {cx, cy:inner,         r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
       svg.appendChild(mk('circle', {cx, cy:inner+innerSz, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
 
-      // Right-pointing arrow straddling the inner/frame boundary
-      const aX = inner + innerSz, aH = 60, aTip = aX + 34;
+      // Right-pointing arrow — base inside white area, tip into green frame
+      const aBase = inner + innerSz - 28, aTip = inner + innerSz + 36, aH = 60;
       svg.appendChild(mk('polygon', {
-        points:`${aX},${cy-aH/2} ${aTip},${cy} ${aX},${cy+aH/2}`,
+        points:`${aBase},${cy-aH/2} ${aTip},${cy} ${aBase},${cy+aH/2}`,
         fill:green
       }));
 
@@ -312,7 +312,7 @@ Take another photo whenever you pass.</textarea>
       svg.appendChild(mk('text', {...tA, x:S-tC, y:cy, transform:`rotate(90,${S-tC},${cy})`},  'tupureel.org'));
 
       // QR modules
-      const qrPad = 16, qrArea = innerSz - qrPad * 2;
+      const qrPad = 40, qrArea = innerSz - qrPad * 2;
       const n = qr.getModuleCount(), cell = qrArea / n;
       const qrX = inner + qrPad, qrY = inner + qrPad;
       for (let row = 0; row < n; row++) {
