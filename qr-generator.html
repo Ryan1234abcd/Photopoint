@@ -179,14 +179,12 @@
       </div>
       <div class="field-group">
         <label>Subject <span id="subjectCount" class="char-count">9/15</span></label>
-        <input type="text" id="subjectInput" value="CHCH-A-01" maxlength="15">
+        <input type="text" id="subjectInput" value="AAAA" maxlength="15">
         <span id="subjectWarn" class="field-warn" style="display:none">Maximum 15 characters reached</span>
       </div>
       <div class="field-group">
         <label>Body <span id="bodyCount" class="char-count"></span></label>
-        <textarea id="bodyInput">Attach a photo and send.
-Use the frame to locate your camera.
-Take another photo whenever you pass.</textarea>
+        <textarea id="bodyInput"></textarea>
         <span class="field-note">Shorter body = smaller, easier-to-scan QR code</span>
       </div>
       <div class="field-group">
@@ -194,7 +192,7 @@ Take another photo whenever you pass.</textarea>
           <input type="checkbox" id="overlayEnabled" checked style="width:auto;cursor:pointer;">
           Overlay text
         </label>
-        <input type="text" id="overlayInput" value="tupureel.org">
+        <input type="text" id="overlayInput" value=>
       </div>
       <div class="field-group">
         <label>Output style</label>
@@ -296,7 +294,7 @@ Take another photo whenever you pass.</textarea>
       svg.appendChild(mk('circle', {cx, cy:inner+innerSz, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
 
       // Right-pointing arrow — base inside white area, tip into green frame
-      const aBase = inner + innerSz - 48, aTip = inner + innerSz - 6, aH = 240;
+      const aBase = inner + innerSz - 48, aTip = inner + innerSz - 8, aH = 360;
       svg.appendChild(mk('polygon', {
         points:`${aBase},${cy-aH/2} ${aTip},${cy} ${aBase},${cy+aH/2}`,
         fill:green
