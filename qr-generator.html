@@ -296,7 +296,7 @@ Take another photo whenever you pass.</textarea>
       svg.appendChild(mk('circle', {cx, cy:inner+innerSz, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
 
       // Right-pointing arrow — base inside white area, tip into green frame
-      const aBase = inner + innerSz - 48, aTip = inner + innerSz + 12, aH = 240;
+      const aBase = inner + innerSz - 48, aTip = inner + qrPad, aH = 240;
       svg.appendChild(mk('polygon', {
         points:`${aBase},${cy-aH/2} ${aTip},${cy} ${aBase},${cy+aH/2}`,
         fill:green
