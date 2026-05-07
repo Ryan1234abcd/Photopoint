@@ -290,8 +290,8 @@
       svg.appendChild(mk('rect', {x:inner, y:inner, width:innerSz, height:innerSz, rx:10, ry:10, fill:'white'}));
 
       // Mounting holes at top and bottom centre of inner area
-      svg.appendChild(mk('circle', {cx, cy:inner,         r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
-      svg.appendChild(mk('circle', {cx, cy:inner+innerSz, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
+      svg.appendChild(mk('circle', {cx, cy:inner+24,         r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
+      svg.appendChild(mk('circle', {cx, cy:inner+innerSz-24, r:14, fill:'#e0e0e0', stroke:'#aaa', 'stroke-width':1.5}));
 
       // Right-pointing arrow — base inside white area, tip into green frame
       const aBase = inner + innerSz - 48, aTip = inner + innerSz - 8, aH = 360;
